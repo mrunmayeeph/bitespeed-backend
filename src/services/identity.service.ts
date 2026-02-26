@@ -6,7 +6,10 @@ import {
 
 export class IdentityService {
   static async reconcile(email?: string, phoneNumber?: string) {
-    if (!email && !phoneNumber) {
+
+    const normalizedEmail = email?.trim().toLowerCase();
+
+    if (!normalizedEmail && !phoneNumber) {
       throw new Error(
         "At least one of email or phoneNumber must be provided"
       );
@@ -15,7 +18,7 @@ export class IdentityService {
     return await prisma.$transaction(async (tx) => {
       // Build dynamic search conditions
       const conditions = [];
-      if (email) conditions.push({ email });
+      if (normalizedEmail) conditions.push({ email: normalizedEmail });
       if (phoneNumber) conditions.push({ phoneNumber });
 
       const matches: Contact[] = await tx.contact.findMany({
@@ -26,7 +29,7 @@ export class IdentityService {
       if (matches.length === 0) {
         const newContact = await tx.contact.create({
           data: {
-            email,
+            email: normalizedEmail,
             phoneNumber,
             linkPrecedence: LinkPrecedence.primary,
           },
@@ -99,36 +102,36 @@ export class IdentityService {
       // Check if new secondary needs to be created
       let shouldCreateSecondary = false;
 
-        if (email !== undefined && email !== null) {
+      if (normalizedEmail !== undefined && normalizedEmail !== null) {
         const emailExists = updatedCluster.some(
-            (c) => c.email === email
+          (c) => c.email === normalizedEmail
         );
         if (!emailExists) {
-            shouldCreateSecondary = true;
+          shouldCreateSecondary = true;
         }
-        }
+      }
 
-        if (phoneNumber !== undefined && phoneNumber !== null) {
+      if (phoneNumber !== undefined && phoneNumber !== null) {
         const phoneExists = updatedCluster.some(
-            (c) => c.phoneNumber === phoneNumber
+          (c) => c.phoneNumber === phoneNumber
         );
         if (!phoneExists) {
-            shouldCreateSecondary = true;
+          shouldCreateSecondary = true;
         }
-        }
+      }
 
-        if (shouldCreateSecondary) {
+      if (shouldCreateSecondary) {
         await tx.contact.create({
-            data: {
-            email: email ?? null,
+          data: {
+            email: normalizedEmail ?? null,
             phoneNumber: phoneNumber ?? null,
             linkedId: primaryContact.id,
             linkPrecedence: LinkPrecedence.secondary,
-            },
+          },
         });
-        }
+      }
 
-      //  Final fetch
+      // Final fetch
       const finalCluster: Contact[] = await tx.contact.findMany({
         where: {
           OR: [
@@ -179,4 +182,3 @@ export class IdentityService {
     };
   }
 }
-
